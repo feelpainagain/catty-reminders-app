@@ -24,10 +24,10 @@ jobs:
             set -e
 
             echo "Logging into GitHub Container Registry from VM..."
-            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_REPOSITORY_OWNER}" --password-stdin
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "feelpainagain" --password-stdin
 
             echo "Pulling latest image..."
-            docker pull ghcr.io/${GITHUB_REPOSITORY_OWNER}/catty-reminders-app:latest
+            docker pull ghcr.io/feelpainagain/catty-reminders-app:latest
 
             echo "Stopping old container if exists..."
             docker rm -f catty-reminders-app || true
@@ -36,7 +36,7 @@ jobs:
             docker run -d \
               --name catty-reminders-app \
               -p 8181:8181 \
-              ghcr.io/${GITHUB_REPOSITORY_OWNER}/catty-reminders-app:latest
+              ghcr.io/feelpainagain/catty-reminders-app:latest
 
             echo "Waiting for app to start..."
             sleep 5
@@ -47,4 +47,3 @@ jobs:
             echo "Deployment via Docker container finished successfully."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
