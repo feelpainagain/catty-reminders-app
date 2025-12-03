@@ -28,25 +28,19 @@ jobs:
             CONTAINER_NAME="catty-reminders-app"
             IMAGE_NAME="ghcr.io/feelpainagain/catty-reminders-app:latest"
 
-            echo "=== DOCKER DEPLOYMENT STARTED ===" > $LOG_FILE
+            echo "=== DOCKER COMPOSE DEPLOYMENT STARTED ===" > $LOG_FILE
             echo "Time: $(date)" >> $LOG_FILE
+
+            cd "$APP_DIR"
 
             echo "🔑 Logging in to GitHub Container Registry..." | tee -a $LOG_FILE
             echo "${{ secrets.TOKEN }}" | sudo docker login ghcr.io -u feelpainagain --password-stdin >> $LOG_FILE 2>&1
 
-            echo "📥 Pulling new Docker image..." | tee -a $LOG_FILE
-            sudo docker pull $IMAGE_NAME >> $LOG_FILE 2>&1
+            echo "📥 Pulling latest image via compose..." | tee -a $LOG_FILE
+            sudo docker compose pull >> $LOG_FILE 2>&1
 
-            echo "🛑 Stopping old container..." | tee -a $LOG_FILE
-            sudo docker stop $CONTAINER_NAME >> $LOG_FILE 2>&1 || true
-            sudo docker rm $CONTAINER_NAME >> $LOG_FILE 2>&1 || true
-
-            echo "🚀 Starting new container..." | tee -a $LOG_FILE
-            sudo docker run -d \
-              --name $CONTAINER_NAME \
-              --restart unless-stopped \
-              -p 8181:8181 \
-              $IMAGE_NAME >> $LOG_FILE 2>&1
+            echo "🚀 Recreating containers via compose..." | tee -a $LOG_FILE
+            sudo docker compose up -d >> $LOG_FILE 2>&1
 
             echo "⏳ Waiting for application to start..." | tee -a $LOG_FILE
             sleep 5
@@ -61,4 +55,4 @@ jobs:
               exit 1
             fi
 
-            echo "🎉 DOCKER DEPLOYMENT COMPLETED $(date)" | tee -a $LOG_FILE
+            echo "🎉 DOCKER COMPOSE DEPLOYMENT COMPLETED $(date)" | tee -a $LOG_FILE
