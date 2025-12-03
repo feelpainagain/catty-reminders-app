@@ -23,27 +23,29 @@ jobs:
           script: |
             set -e
 
-            echo "Logging into GitHub Container Registry from VM..."
-            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "feelpainagain" --password-stdin
+            LOG_FILE=/home/Ubuntu/deploy.log
 
-            echo "Pulling latest image..."
-            docker pull ghcr.io/feelpainagain/catty-reminders-app:latest
+            echo "Logging into GitHub Container Registry from VM..." | tee -a "$LOG_FILE"
+            echo "${TOKEN}" | sudo docker login ghcr.io -u "feelpainagain" --password-stdin >> "$LOG_FILE" 2>&1
 
-            echo "Stopping old container if exists..."
-            docker rm -f catty-reminders-app || true
+            echo "Pulling latest image..." | tee -a "$LOG_FILE"
+            sudo docker pull ghcr.io/feelpainagain/catty-reminders-app:latest >> "$LOG_FILE" 2>&1
 
-            echo "Starting new container..."
-            docker run -d \
+            echo "Stopping old container if exists..." | tee -a "$LOG_FILE"
+            sudo docker rm -f catty-reminders-app || true
+
+            echo "Starting new container..." | tee -a "$LOG_FILE"
+            sudo docker run -d \
               --name catty-reminders-app \
               -p 8181:8181 \
-              ghcr.io/feelpainagain/catty-reminders-app:latest
+              ghcr.io/feelpainagain/catty-reminders-app:latest >> "$LOG_FILE" 2>&1
 
-            echo "Waiting for app to start..."
+            echo "Waiting for app to start..." | tee -a "$LOG_FILE"
             sleep 5
 
-            echo "Checking app health..."
+            echo "Checking app health..." | tee -a "$LOG_FILE"
             curl -s http://127.0.0.1:8181/docs > /dev/null
 
-            echo "Deployment via Docker container finished successfully."
+            echo "Deployment via Docker container finished successfully." | tee -a "$LOG_FILE"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.TOKEN }}
