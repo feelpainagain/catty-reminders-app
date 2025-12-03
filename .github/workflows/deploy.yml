@@ -12,17 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Deploy to VM via SSH
+      - name: Deploy to VM via SSH (run Docker container)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: course.prafdin.ru
@@ -31,16 +21,33 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            echo "Connecting to VM..."
-            cd /home/Ubuntu/app
-            echo "Updating repository..."
-            git fetch origin
-            git checkout master
-            git pull origin master
-            echo "Restarting service..."
-            sudo systemctl restart myapp
-            sleep 3
-            sudo systemctl is-active --quiet myapp
+
+            echo "Stopping old systemd service (if running)..."
+            sudo systemctl stop myapp || true
+
+            echo "Logging into GitHub Container Registry from VM..."
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+            echo "Pulling latest image..."
+            docker pull ghcr.io/${GITHUB_REPOSITORY_OWNER}/catty-reminders-app:latest
+
+            echo "Stopping old container if exists..."
+            docker rm -f catty-reminders-app || true
+
+            echo "Starting new container..."
+            docker run -d \
+              --name catty-reminders-app \
+              -p 8181:8181 \
+              ghcr.io/${GITHUB_REPOSITORY_OWNER}/catty-reminders-app:latest
+
+            echo "Waiting for app to start..."
+            sleep 5
+
             echo "Checking app health..."
             curl -s http://127.0.0.1:8181/docs > /dev/null
-            echo "Deployment finished successfully."
+
+            echo "Deployment via Docker container finished successfully."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
