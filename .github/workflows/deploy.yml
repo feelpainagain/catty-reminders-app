@@ -12,17 +12,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Дебаг: смотрим, что за ключ реально приходит в раннер
-      - name: Debug SSH private key
-        run: |
-          echo "Key length: ${#SSH_PRIVATE_KEY}"
-          echo "-----BEGIN (first lines)-----"
-          echo "${SSH_PRIVATE_KEY}" | head -n 3
-          echo "-----END (last lines)-----"
-          echo "${SSH_PRIVATE_KEY}" | tail -n 3
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Deploy to VM via SSH (run Docker container)
         uses: appleboy/ssh-action@v1.1.0
         with:
@@ -35,7 +24,7 @@ jobs:
             set -e
 
             echo "Stopping old systemd service (if running)..."
-            sudo systemctl stop myapp || true
+            systemctl stop myapp || true
 
             echo "Logging into GitHub Container Registry from VM..."
             echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
