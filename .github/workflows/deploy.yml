@@ -1,6 +1,7 @@
 name: CD
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -9,41 +10,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v5
 
-      - name: Deploy to VM via SSH (run Docker container)
-        uses: appleboy/ssh-action@v1.1.0
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1
         with:
           host: course.prafdin.ru
           port: ${{ secrets.SSH_PORT }}
           username: Ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          debug: true
           script: |
             set -e
 
-            echo "Logging into GitHub Container Registry from VM..."
-            echo "${TOKEN}" | docker login ghcr.io -u "feelpainagain" --password-stdin
+            APP_DIR="/home/Ubuntu/app"
+            LOG_FILE="/home/Ubuntu/deploy.log"
+            CONTAINER_NAME="catty-reminders-app"
+            IMAGE_NAME="ghcr.io/feelpainagain/catty-reminders-app:latest"
 
-            echo "Pulling latest image..."
-            docker pull ghcr.io/feelpainagain/catty-reminders-app:latest
+            echo "=== DOCKER DEPLOYMENT STARTED ===" > $LOG_FILE
+            echo "Time: $(date)" >> $LOG_FILE
 
-            echo "Stopping old container if exists..."
-            docker rm -f catty-reminders-app || true
+            echo "🔑 Logging in to GitHub Container Registry..." | tee -a $LOG_FILE
+            echo "${{ secrets.TOKEN }}" | sudo docker login ghcr.io -u feelpainagain --password-stdin >> $LOG_FILE 2>&1
 
-            echo "Starting new container..."
-            docker run -d \
-              --name catty-reminders-app \
+            echo "📥 Pulling new Docker image..." | tee -a $LOG_FILE
+            sudo docker pull $IMAGE_NAME >> $LOG_FILE 2>&1
+
+            echo "🛑 Stopping old container..." | tee -a $LOG_FILE
+            sudo docker stop $CONTAINER_NAME >> $LOG_FILE 2>&1 || true
+            sudo docker rm $CONTAINER_NAME >> $LOG_FILE 2>&1 || true
+
+            echo "🚀 Starting new container..." | tee -a $LOG_FILE
+            sudo docker run -d \
+              --name $CONTAINER_NAME \
+              --restart unless-stopped \
               -p 8181:8181 \
-              ghcr.io/feelpainagain/catty-reminders-app:latest
+              $IMAGE_NAME >> $LOG_FILE 2>&1
 
-            echo "Waiting for app to start..."
+            echo "⏳ Waiting for application to start..." | tee -a $LOG_FILE
             sleep 5
 
-            echo "Checking app health..."
-            curl -s http://127.0.0.1:8181/docs > /dev/null
+            echo "🏥 Health check..." | tee -a $LOG_FILE
+            if curl -f http://localhost:8181/docs >> $LOG_FILE 2>&1; then
+              echo "✅ Health check passed" | tee -a $LOG_FILE
+            else
+              echo "⚠️ Health check failed" | tee -a $LOG_FILE
+              sudo docker ps -a >> $LOG_FILE
+              sudo docker logs $CONTAINER_NAME >> $LOG_FILE 2>&1
+              exit 1
+            fi
 
-            echo "Deployment via Docker container finished successfully."
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
+            echo "🎉 DOCKER DEPLOYMENT COMPLETED $(date)" | tee -a $LOG_FILE
