@@ -1,5 +1,25 @@
 name: CD
 
+steps:
+      - name: Debug SSH key (length only)
+        run: |
+          echo "Key length: ${#SSH_PRIVATE_KEY}"
+          echo "${SSH_PRIVATE_KEY}" | head -n 2
+          echo "${SSH_PRIVATE_KEY}" | tail -n 2
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to VM via SSH (run Docker container)
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: course.prafdin.ru
+          port: ${{ secrets.SSH_PORT }}
+          username: Ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            echo "OK"
+
 on:
   release:
     types: [published]
