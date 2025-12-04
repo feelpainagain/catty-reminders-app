@@ -27,63 +27,41 @@ jobs:
             set -e
 
             APP_DIR="/home/Ubuntu/app"
-            LOG_FILE="/home/Ubuntu/deploy-docker.log"
-            CONTAINER_NAME="catty-reminders-app"
-            IMAGE_NAME="ghcr.io/feelpainagain/catty-reminders-app:latest"
-
-            echo "=== DOCKER DEPLOYMENT STARTED ===" > "$LOG_FILE"
+            LOG_FILE="/home/Ubuntu/deploy-docker-compose.log"
+            
+            echo "=== DOCKER-COMPOSE DEPLOYMENT STARTED ===" > "$LOG_FILE"
             echo "Time: $(date)" >> "$LOG_FILE"
-
+            
             cd "$APP_DIR"
-
+            
             echo "🔄 Updating repository..." | tee -a "$LOG_FILE"
             git fetch origin >> "$LOG_FILE" 2>&1
-            git checkout master >> "$LOG_FILE" 2>&1
-            git pull origin master >> "$LOG_FILE" 2>&1
-
+            git checkout docker_compose >> "$LOG_FILE" 2>&1
+            git pull origin docker_compose >> "$LOG_FILE" 2>&1
+            
             echo "🔑 Logging in to GitHub Container Registry..." | tee -a "$LOG_FILE"
             echo "${{ secrets.TOKEN }}" | sudo docker login ghcr.io -u feelpainagain --password-stdin >> "$LOG_FILE" 2>&1
-
-            echo "📥 Pulling new Docker image $IMAGE_NAME..." | tee -a "$LOG_FILE"
-            sudo docker pull "$IMAGE_NAME" >> "$LOG_FILE" 2>&1
-
-            echo "🛑 Stopping old container (if exists)..." | tee -a "$LOG_FILE"
-            sudo docker stop "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1 || true
-            sudo docker rm "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1 || true
-
-            echo "🔍 Checking port 8181..." | tee -a "$LOG_FILE"
-            sudo netstat -tulpn | grep 8181 >> "$LOG_FILE" 2>&1 || echo "Port 8181 is free" | tee -a "$LOG_FILE"
-
-            echo "🚀 Starting new container..." | tee -a "$LOG_FILE"
-            sudo docker run -d \
-              --name "$CONTAINER_NAME" \
-              --restart unless-stopped \
-              -p 8181:8181 \
-              "$IMAGE_NAME" >> "$LOG_FILE" 2>&1
-
-            echo "✅ Container status after run:" | tee -a "$LOG_FILE"
-            sudo docker ps -a | grep "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
-
-            if ! sudo docker ps | grep -q "$CONTAINER_NAME"; then
-              echo "❌ Container failed to start. Checking logs..." | tee -a "$LOG_FILE"
-              sudo docker logs "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
-              exit 1
-            fi
-
+            
+            echo "📥 Pulling latest images via docker compose..." | tee -a "$LOG_FILE"
+            sudo docker compose pull >> "$LOG_FILE" 2>&1
+            
+            echo "🛑 Stopping old stack..." | tee -a "$LOG_FILE"
+            sudo docker compose down >> "$LOG_FILE" 2>&1
+            
+            echo "🚀 Starting new stack..." | tee -a "$LOG_FILE"
+            sudo docker compose up -d >> "$LOG_FILE" 2>&1
+            
             echo "⏳ Waiting for application to start..." | tee -a "$LOG_FILE"
             sleep 5
-
-            echo "📋 Container logs:" | tee -a "$LOG_FILE"
-            sudo docker logs "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
-
+            
             echo "🏥 Health check..." | tee -a "$LOG_FILE"
             if curl -f http://localhost:8181/docs >> "$LOG_FILE" 2>&1; then
               echo "✅ Health check passed" | tee -a "$LOG_FILE"
             else
-              echo "⚠️ Health check failed, checking container status..." | tee -a "$LOG_FILE"
-              sudo docker ps -a >> "$LOG_FILE"
-              sudo docker logs "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
+              echo "⚠️ Health check failed" | tee -a "$LOG_FILE"
+              sudo docker compose ps >> "$LOG_FILE" 2>&1
+              sudo docker compose logs >> "$LOG_FILE" 2>&1
               exit 1
             fi
-
-            echo "🎉 DOCKER DEPLOYMENT COMPLETED $(date)" | tee -a "$LOG_FILE"
+            
+            echo "🎉 DOCKER-COMPOSE DEPLOYMENT COMPLETED $(date)" | tee -a "$LOG_FILE"
