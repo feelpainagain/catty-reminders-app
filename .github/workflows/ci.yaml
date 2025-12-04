@@ -27,7 +27,7 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          pytest tests_smoke
+          PYTHONPATH=. pytest tests_smoke
 
   docker-build-push:
     name: Build and Push Docker Image
