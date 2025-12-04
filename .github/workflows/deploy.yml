@@ -1,17 +1,13 @@
 name: CD
 
 on:
-  # Ручной запуск из UI
   workflow_dispatch:
-  # Автоматический запуск при публикации релиза
   release:
     types: [published]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    # CD можно запускать и руками, и по релизу
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release'
@@ -23,10 +19,10 @@ jobs:
       - name: Deploy to VM via SSH (Docker)
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.SSH_HOST }}      # например, course.prafdin.ru
-          port: ${{ secrets.SSH_PORT }}      # 2427
-          username: ${{ secrets.SSH_USER }}  # Ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: course.prafdin.ru              # фиксированный хост
+          port: ${{ secrets.SSH_PORT }}        # из секретов
+          username: Ubuntu                     # фиксированный пользователь
+          key: ${{ secrets.SSH_PRIVATE_KEY }}  # приватный ключ
           script: |
             set -e
 
@@ -46,7 +42,7 @@ jobs:
             git pull origin master >> "$LOG_FILE" 2>&1
 
             echo "🔑 Logging in to GitHub Container Registry..." | tee -a "$LOG_FILE"
-            echo "${{ secrets.GHCR_TOKEN }}" | sudo docker login ghcr.io -u feelpainagain --password-stdin >> "$LOG_FILE" 2>&1
+            echo "${{ secrets.TOKEN }}" | sudo docker login ghcr.io -u feelpainagain --password-stdin >> "$LOG_FILE" 2>&1
 
             echo "📥 Pulling new Docker image $IMAGE_NAME..." | tee -a "$LOG_FILE"
             sudo docker pull "$IMAGE_NAME" >> "$LOG_FILE" 2>&1
