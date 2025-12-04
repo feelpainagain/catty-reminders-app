@@ -38,9 +38,9 @@ jobs:
             git checkout master
             git pull origin master
             echo "Restarting service..."
-            systemctl restart myapp
+            sudo systemctl restart myapp
             sleep 3
-            systemctl is-active --quiet myapp
+            sudo systemctl is-active --quiet myapp
             echo "Checking app health..."
             curl -s http://127.0.0.1:8181/docs > /dev/null
             echo "Deployment finished successfully."
