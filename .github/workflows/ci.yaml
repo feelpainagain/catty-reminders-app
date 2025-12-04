@@ -25,9 +25,9 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Run smoke tests
+      - name: Run tests
         run: |
-          PYTHONPATH=. pytest tests_smoke
+          PYTHONPATH=. pytest
 
   docker-build-push:
     name: Build and Push Docker Image
