@@ -45,11 +45,16 @@ jobs:
             echo "📥 Pulling latest images via docker compose..." | tee -a "$LOG_FILE"
             sudo docker compose pull >> "$LOG_FILE" 2>&1
             
+            echo "🧹 Cleaning up old standalone container if exists..." | tee -a "$LOG_FILE"
+            sudo docker stop catty-reminders-app || true
+            sudo docker rm catty-reminders-app || true
+            
             echo "🛑 Stopping old stack..." | tee -a "$LOG_FILE"
             sudo docker compose down >> "$LOG_FILE" 2>&1
             
             echo "🚀 Starting new stack..." | tee -a "$LOG_FILE"
             sudo docker compose up -d >> "$LOG_FILE" 2>&1
+
             
             echo "⏳ Waiting for application to start..." | tee -a "$LOG_FILE"
             sleep 5
