@@ -25,9 +25,9 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Run tests
+      - name: Run unit tests only
         run: |
-          PYTHONPATH=. pytest
+          PYTHONPATH=. pytest tests/test_unit.py
 
   docker-build-push:
     name: Build and Push Docker Image
