@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  db:
+    image: mariadb:11.4
+    container_name: catty-mariadb
+    environment:
+      MARIADB_ROOT_PASSWORD: mypass        # как в config.json
+      MARIADB_DATABASE: catty_reminders    # как в config.json
+      MARIADB_USER: root                   # пользователь
+      MARIADB_PASSWORD: mypass             # пароль
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    restart: unless-stopped
+
+  catty-app:
+    image: ghcr.io/feelpainagain/catty-reminders-app:latest
+    container_name: catty-reminders-app
+    ports:
+      - "8181:8181"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  db-data:
