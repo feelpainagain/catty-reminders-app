@@ -1,6 +1,9 @@
 name: CD
 
 on:
+  # Ручной запуск из UI
+  workflow_dispatch:
+  # Автоматический запуск при публикации релиза
   release:
     types: [published]
 
@@ -8,40 +11,83 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # CD можно запускать и руками, и по релизу
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release'
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Deploy to VM via SSH (Docker)
+        uses: appleboy/ssh-action@v1
         with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Deploy to VM via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: course.prafdin.ru
-          port: ${{ secrets.SSH_PORT }}
-          username: Ubuntu
+          host: ${{ secrets.SSH_HOST }}      # например, course.prafdin.ru
+          port: ${{ secrets.SSH_PORT }}      # 2427
+          username: ${{ secrets.SSH_USER }}  # Ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            echo "Connecting to VM..."
-            cd /home/Ubuntu/app
-            echo "Updating repository..."
-            git fetch origin
-            git checkout master
-            git pull origin master
-            echo "Restarting service..."
-            echo "" | sudo -S systemctl restart myapp
-            sleep 3
-            echo "" | sudo -S systemctl is-active --quiet myapp
-            echo "Checking app health..."
-            curl -s http://127.0.0.1:8181/docs > /dev/null
-            echo "Deployment finished successfully."
 
+            APP_DIR="/home/Ubuntu/app"
+            LOG_FILE="/home/Ubuntu/deploy-docker.log"
+            CONTAINER_NAME="catty-reminders-app"
+            IMAGE_NAME="ghcr.io/feelpainagain/catty-reminders-app:latest"
+
+            echo "=== DOCKER DEPLOYMENT STARTED ===" > "$LOG_FILE"
+            echo "Time: $(date)" >> "$LOG_FILE"
+
+            cd "$APP_DIR"
+
+            echo "🔄 Updating repository..." | tee -a "$LOG_FILE"
+            git fetch origin >> "$LOG_FILE" 2>&1
+            git checkout master >> "$LOG_FILE" 2>&1
+            git pull origin master >> "$LOG_FILE" 2>&1
+
+            echo "🔑 Logging in to GitHub Container Registry..." | tee -a "$LOG_FILE"
+            echo "${{ secrets.GHCR_TOKEN }}" | sudo docker login ghcr.io -u feelpainagain --password-stdin >> "$LOG_FILE" 2>&1
+
+            echo "📥 Pulling new Docker image $IMAGE_NAME..." | tee -a "$LOG_FILE"
+            sudo docker pull "$IMAGE_NAME" >> "$LOG_FILE" 2>&1
+
+            echo "🛑 Stopping old container (if exists)..." | tee -a "$LOG_FILE"
+            sudo docker stop "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1 || true
+            sudo docker rm "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1 || true
+
+            echo "🔍 Checking port 8181..." | tee -a "$LOG_FILE"
+            sudo netstat -tulpn | grep 8181 >> "$LOG_FILE" 2>&1 || echo "Port 8181 is free" | tee -a "$LOG_FILE"
+
+            echo "🚀 Starting new container..." | tee -a "$LOG_FILE"
+            sudo docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart unless-stopped \
+              -p 8181:8181 \
+              "$IMAGE_NAME" >> "$LOG_FILE" 2>&1
+
+            echo "✅ Container status after run:" | tee -a "$LOG_FILE"
+            sudo docker ps -a | grep "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
+
+            if ! sudo docker ps | grep -q "$CONTAINER_NAME"; then
+              echo "❌ Container failed to start. Checking logs..." | tee -a "$LOG_FILE"
+              sudo docker logs "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
+              exit 1
+            fi
+
+            echo "⏳ Waiting for application to start..." | tee -a "$LOG_FILE"
+            sleep 5
+
+            echo "📋 Container logs:" | tee -a "$LOG_FILE"
+            sudo docker logs "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
+
+            echo "🏥 Health check..." | tee -a "$LOG_FILE"
+            if curl -f http://localhost:8181/docs >> "$LOG_FILE" 2>&1; then
+              echo "✅ Health check passed" | tee -a "$LOG_FILE"
+            else
+              echo "⚠️ Health check failed, checking container status..." | tee -a "$LOG_FILE"
+              sudo docker ps -a >> "$LOG_FILE"
+              sudo docker logs "$CONTAINER_NAME" >> "$LOG_FILE" 2>&1
+              exit 1
+            fi
+
+            echo "🎉 DOCKER DEPLOYMENT COMPLETED $(date)" | tee -a "$LOG_FILE"
